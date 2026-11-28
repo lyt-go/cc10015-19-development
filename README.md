@@ -11,7 +11,7 @@
 .
 ├── frontend/                 Vue 3 + Vite + TypeScript 前端
 │   ├── src/views/WorkbenchView.vue|tsx  全部模块共享工作台
-│   ├── src/data/modules.ts              18个业务模块配置
+│   ├── src/data/modules.ts              19个业务模块配置
 │   ├── src/api/              统一请求封装
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
@@ -64,7 +64,8 @@ npm run dev
 | 分析申请 | `analysis_request` | 分析申请单 | 申请样品、分析项目、分析方法 |
 | 航次日志 | `cruise_log` | 航海日志 | 记录日期、船舶位置、作业内容 |
 | 仪器校准 | `instrument_calib` | 校准记录 | 仪器名称、校准项目、标准参数 |
-| 潜水作业 | `diving_ops` | 潜水记录 | 潜水地点、潜水深度、潜水时长 |
+| 潜水作业 | `diving_ops` | 潜水记录 | 潜水地点、潜水深度、潜水时长、作业时段、值班确认单 |
+| 值班确认 | `duty_confirmation` | 值班确认单 | 作业时段、潜水员、安全员、值班领队、关联排班、签认岗位 |
 | 数据传输 | `data_transfer` | 传输记录 | 数据内容、数据量、传输方式 |
 | 航迹记录 | `track_record` | 航迹点 | 记录时间、经纬度、航速 |
 | 成果汇编 | `results_compile` | 汇编报告 | 航次编号、成果类别、主要发现 |
@@ -76,6 +77,17 @@ npm run dev
   `frontend/src/domain/<模块>.ts`，用于承载真实业务差异并维持36题位容量。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 值班核验链路（队员排班 → 值班确认单 → 潜水下水）
+
+- 值班确认单 `duty_confirmation` 按作业时段从当前有效排班（已发布/已确认、未调整、未核销）
+  生成，一张有效确认单只固化一组当班责任人（潜水员、安全员，以及可选的值班领队）。
+- 岗位签认锚定到具体排班行 id 与本人姓名：负责该作业时段且角色匹配的排班人才能办理，
+  同名队员跨排班、跨时段、角色不匹配都不能代签；同一时段同一人兼任两个责任岗位不予受理。
+- 安全员在途确认与值班领队交接互斥，冲突及“谁可继续确认、谁需补签”写入操作日志，
+  可通过 `GET /api/operation-logs`（支持 `module/entry_id/shift/result` 过滤）追溯。
+- 排班调整、潜水中止会核销受影响的签认资格；下水登记必须关联两名仍有资格的队员，
+  已中止作业所持的旧值班确认单不能再次登记下水。
 
 领域：应用开发
 子方向：服务端开发

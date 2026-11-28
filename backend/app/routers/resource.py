@@ -61,6 +61,21 @@ def module_snapshot(module: str) -> dict[str, Any]:
         crew_rows = store.rows("crew_schedule")
         unavailable = sum(1 for r in crew_rows if r.get("diving_aborted"))
         cross["unavailable_crew"] = unavailable
+        duty_rows = store.rows("duty_confirmation")
+        cross["verified_duty_confirmations"] = sum(
+            1 for r in duty_rows if r.get("status") == "已核实"
+        )
+        cross["revoked_duty_confirmations"] = sum(
+            1 for r in duty_rows if r.get("status") == "已核销"
+        )
+        cross["operation_logs"] = store.operation_logs(module="diving_ops")
+    elif module == "duty_confirmation":
+        from app.services import duty_guard as guard
+        cross["qualification"] = guard.qualification_summary()
+        cross["operation_logs"] = store.operation_logs(module="duty_confirmation")
+        cross["aborted_dives"] = sum(
+            1 for r in store.rows("diving_ops") if r.get("status") == "已中止"
+        )
     elif module == "weather_obs":
         station_rows = store.rows("station_deploy")
         alerted = sum(1 for r in station_rows if r.get("weather_alert"))
@@ -140,6 +155,21 @@ def cross_links() -> dict[str, Any]:
     return {"links": links}
 
 
+@router.get("/operation-logs")
+def operation_logs(
+    module: str | None = Query(default=None),
+    entry_id: int | None = Query(default=None),
+    shift: str | None = Query(default=None),
+    result: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """值班核验操作日志：查出谁可以继续确认、谁需要补签。"""
+    return {
+        "items": store.operation_logs(
+            module=module, entry_id=entry_id, shift=shift, result=result,
+        )
+    }
+
+
 @router.get("/{module}", response_model=PageResult[dict])
 def list_entries(
     module: str,
@@ -206,6 +236,11 @@ def create_entry(module: str, payload: EntryPayload) -> ActionResult:
     service = require_service(module)
     entry, missing = service.create_entry(payload.values)
     if missing:
+        # 区分"缺字段"与"领域规则拒绝"：规则消息不会是该模块的必填字段名
+        required = set(getattr(service, "REQUIRED_FIELDS", []))
+        rule_errors = [item for item in missing if item not in required]
+        if rule_errors:
+            return ActionResult(ok=False, message="；".join(rule_errors))
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message=f"{service.ENTITY}已登记", entry=entry)
 
@@ -213,5 +248,11 @@ def create_entry(module: str, payload: EntryPayload) -> ActionResult:
 @router.post("/{module}/{entry_id}/actions", response_model=ActionResult)
 def run_action(module: str, entry_id: int, payload: ActionPayload) -> ActionResult:
     service = require_service(module)
-    entry, message = service.run_action(entry_id, payload.action.strip())
+    entry, message = service.run_action(
+        entry_id,
+        payload.action.strip(),
+        operator=payload.operator,
+        role=payload.role,
+        schedule_id=payload.schedule_id,
+    )
     return ActionResult(ok=entry is not None, message=message, entry=entry)

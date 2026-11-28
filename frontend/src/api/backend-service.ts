@@ -25,16 +25,54 @@ export async function createEntry(
   return await response.json()
 }
 
+export type ActionContext = {
+  operator?: string
+  role?: string
+  scheduleId?: number
+}
+
 export async function runAction(
   key: string,
   id: number,
   action: string,
+  context: ActionContext = {},
 ): Promise<ActionResult> {
   const response = await request(`/api/${key}/${id}/actions`, {
     method: 'POST',
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({
+      action,
+      operator: context.operator || null,
+      role: context.role || null,
+      schedule_id: context.scheduleId ?? null,
+    }),
   })
   return await response.json()
+}
+
+export type OperationLog = {
+  id: number
+  time: string
+  module: string
+  entry_id: number | null
+  action: string
+  result: string
+  shift: string | null
+  operator: string | null
+  role: string | null
+  schedule_id: number | null
+  message: string
+  can_continue?: string[]
+  need_resign?: string[]
+}
+
+export async function fetchOperationLogs(
+  filters: Record<string, string> = {},
+): Promise<OperationLog[]> {
+  const query = new URLSearchParams(filters).toString()
+  const response = await request(`/api/operation-logs?${query}`)
+  if (!response.ok) throw new Error('操作日志读取失败')
+  const payload = await response.json()
+  return payload.items ?? []
 }
 
 export async function downloadEntries(

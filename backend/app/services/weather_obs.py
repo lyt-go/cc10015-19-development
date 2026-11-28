@@ -17,7 +17,16 @@ class WeatherObsService(BaseModuleService):
     ACTION_RULES = {"记录数据": "已记录", "同步岸端": "已同步", "标记海况": "恶劣海况"}
     NEGATIVE_ACTIONS = ["标记海况"]
 
-    def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+    def run_action(
+        self,
+        entry_id: int,
+        action: str,
+        *,
+        operator: str | None = None,
+        role: str | None = None,
+        schedule_id: int | None = None,
+        **_: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return None, f"{self.ENTITY} {entry_id} 不存在或已归档"

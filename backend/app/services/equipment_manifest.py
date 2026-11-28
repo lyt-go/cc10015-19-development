@@ -17,7 +17,16 @@ class EquipmentManifestService(BaseModuleService):
     ACTION_RULES = {"校验设备": "已校验", "启用设备": "已启用", "归还设备": "已归还"}
     NEGATIVE_ACTIONS = []
 
-    def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+    def run_action(
+        self,
+        entry_id: int,
+        action: str,
+        *,
+        operator: str | None = None,
+        role: str | None = None,
+        schedule_id: int | None = None,
+        **_: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return None, f"{self.ENTITY} {entry_id} 不存在或已归档"

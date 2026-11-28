@@ -20,6 +20,8 @@ class Store:
         self._global_lock = threading.Lock()
         # 回滚日志：{transaction_id: {module, entry_id, before_snapshot}}
         self._rollback_log: dict[str, dict] = {}
+        # 值班核验操作日志：签认、冲突、核销、下水登记的全过程留痕
+        self._operation_logs: list[dict[str, Any]] = []
         # 重试配置
         self._retry_max: int = 3
         self._retry_delay: float = 0.01
@@ -31,6 +33,7 @@ class Store:
         }
         self._idempotent_keys.clear()
         self._rollback_log.clear()
+        self._operation_logs.clear()
 
     def reset(self) -> None:
         """重置所有数据回到初始种子状态。"""
@@ -88,6 +91,35 @@ class Store:
         """清除幂等键（用于失败回滚）。"""
         with self._global_lock:
             self._idempotent_keys.discard(key)
+
+    def append_operation_log(self, entry: dict[str, Any]) -> dict[str, Any]:
+        """追加一条值班核验操作日志，返回写入后的副本。"""
+        with self._global_lock:
+            log_id = max((int(item.get("id", 0)) for item in self._operation_logs), default=0) + 1
+            record = dict(entry)
+            record["id"] = log_id
+            self._operation_logs.append(record)
+            return dict(record)
+
+    def operation_logs(
+        self,
+        *,
+        module: str | None = None,
+        entry_id: int | None = None,
+        shift: str | None = None,
+        result: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """按模块/单据/时段/结果过滤操作日志，最新的排在前面。"""
+        rows = self._operation_logs
+        if module:
+            rows = [r for r in rows if r.get("module") == module]
+        if entry_id is not None:
+            rows = [r for r in rows if r.get("entry_id") == entry_id]
+        if shift:
+            rows = [r for r in rows if r.get("shift") == shift]
+        if result:
+            rows = [r for r in rows if r.get("result") == result]
+        return [dict(r) for r in reversed(rows)]
 
     def find_by(self, module: str, field: str, value: Any) -> list[dict[str, Any]]:
         """按字段值查找记录。"""

@@ -29,3 +29,7 @@ class EntryPayload(BaseModel):
 class ActionPayload(BaseModel):
     action: str
     remark: str | None = None
+    # 值班核验类动作的办理上下文：办理人、责任岗位、所持排班行标识
+    operator: str | None = None
+    role: str | None = None
+    schedule_id: int | None = None

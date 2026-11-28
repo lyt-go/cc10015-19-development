@@ -17,6 +17,7 @@ from app.services.analysis_request import AnalysisRequestService
 from app.services.cruise_log import CruiseLogService
 from app.services.instrument_calib import InstrumentCalibService
 from app.services.diving_ops import DivingOpsService
+from app.services.duty_confirmation import DutyConfirmationService
 from app.services.data_transfer import DataTransferService
 from app.services.track_record import TrackRecordService
 from app.services.results_compile import ResultsCompileService
@@ -37,6 +38,7 @@ SERVICES: dict[str, BaseModuleService] = {
     "cruise_log": CruiseLogService(),
     "instrument_calib": InstrumentCalibService(),
     "diving_ops": DivingOpsService(),
+    "duty_confirmation": DutyConfirmationService(),
     "data_transfer": DataTransferService(),
     "track_record": TrackRecordService(),
     "results_compile": ResultsCompileService(),

@@ -1,8 +1,10 @@
 """队员排班领域服务：排班调整影响站位布设和潜水作业的人员可用性。"""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
+from app.services import duty_guard as guard
 from app.services.base import BaseModuleService
 from app.store import store
 
@@ -17,7 +19,14 @@ class CrewScheduleService(BaseModuleService):
     ACTION_RULES = {"发布排班": "已发布", "确认排班": "已确认", "调整排班": "已调整"}
     NEGATIVE_ACTIONS = []
 
-    def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+    def run_action(
+        self,
+        entry_id: int,
+        action: str,
+        *,
+        operator: str | None = None,
+        **_: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return None, f"{self.ENTITY} {entry_id} 不存在或已归档"
@@ -31,11 +40,10 @@ class CrewScheduleService(BaseModuleService):
         if store.is_idempotent(idempotent_key):
             return None, f"动作「{action}」已执行，请勿重复操作"
 
-        old_status = entry.get("status")
         entry["status"] = target
         entry["pending"] = target in ("待排班", "已发布")
         entry["abnormal"] = action in self.NEGATIVE_ACTIONS
-        entry["adjustment_time"] = str(Any)
+        entry["adjustment_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         store.mark_idempotent(idempotent_key)
 
@@ -43,6 +51,25 @@ class CrewScheduleService(BaseModuleService):
         if action == "调整排班":
             member_name = entry.get("队员姓名", "")
             self._mark_affected_operations(member_name)
+            # 调整后的排班行不再支撑原值班确认单的有效签认资格
+            affected = guard.revoke_schedule_qualifications(
+                [entry_id],
+                f"排班{entry_id}（{entry.get('岗位职责', '')}/{member_name}）已调整，原签认资格核销",
+            )
+            guard.write_operation_log(
+                module=self.MODULE,
+                action="调整排班",
+                result="核销",
+                message=(
+                    f"排班{entry_id}已调整，核销{len(affected)}张值班确认单上的受影响资格，"
+                    "相关岗位需重新排班并补签"
+                ),
+                shift=entry.get("作业时段"),
+                entry_id=entry_id,
+                operator=operator or entry.get("排班人"),
+                schedule_id=entry_id,
+                extra={"affected_confirmations": [c["id"] for c in affected]},
+            )
 
         return entry, f"{self.ENTITY}已{action}"
 

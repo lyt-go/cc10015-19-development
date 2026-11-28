@@ -18,7 +18,16 @@ class DataQcService(BaseModuleService):
     ACTION_RULES = {"开始质控": "质控中", "签发报告": "已签发", "退回重测": "需重测"}
     NEGATIVE_ACTIONS = ["退回重测"]
 
-    def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+    def run_action(
+        self,
+        entry_id: int,
+        action: str,
+        *,
+        operator: str | None = None,
+        role: str | None = None,
+        schedule_id: int | None = None,
+        **_: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return None, f"{self.ENTITY} {entry_id} 不存在或已归档"

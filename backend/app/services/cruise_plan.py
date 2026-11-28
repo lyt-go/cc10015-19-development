@@ -31,7 +31,16 @@ class CruisePlanService(BaseModuleService):
                 return dict(row)
         return None
 
-    def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
+    def run_action(
+        self,
+        entry_id: int,
+        action: str,
+        *,
+        operator: str | None = None,
+        role: str | None = None,
+        schedule_id: int | None = None,
+        **_: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
         """执行动作，增加变更计划时的业务规则校验和回滚支持。"""
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
